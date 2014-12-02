@@ -513,6 +513,89 @@ diff_match_patch.prototype.diff_charsToLines_ = function(diffs, lineArray) {
 
 
 /**
+ * Split two texts into an array of strings.  Reduce the texts to a string of
+ * hashes where each Unicode character represents one word.
+ * @param {string} text1 First string.
+ * @param {string} text2 Second string.
+ * @return {{chars1: string, chars2: string, lineArray: !Array.<string>}}
+ *     An object containing the encoded text1, the encoded text2 and
+ *     the array of unique strings.
+ *     The zeroth element of the array of unique strings is intentionally blank.
+ * @private
+ */
+diff_match_patch.prototype.diff_wordsToChars_ = function(text1, text2) {
+  var wordArray = [];  // e.g. lineArray[4] == 'Hello\n'
+  var wordHash = {};   // e.g. lineHash['Hello\n'] == 4
+
+  //console.log('diff_wordsToChars_ text1: ' + text1);
+  //console.log('diff_wordsToChars_ text2: ' + text2);
+
+  // '\x00' is a valid character, but various debuggers don't like it.
+  // So we'll insert a junk entry to avoid generating a null character.
+  wordArray[0] = '';
+
+  /**
+   * Split a text into an array of strings.  Reduce the texts to a string of
+   * hashes where each Unicode character represents one word (with optional punctuation appended).
+   * Modifies wordArray and wordHash through being a closure.
+   * @param {string} text String to encode.
+   * @return {string} Encoded string.
+   * @private
+   */
+  function diff_wordsToCharsMunge_(text) {
+    //console.log('diff_wordsToCharsMunge_ text: ' + text);
+    var chars = '';
+    var wordsInTextArray = text.match(/\S+/g);
+    //console.log(wordsInTextArray);
+    var wordArrayLength = wordArray.length;
+    for(var i = 0,word; (word = wordsInTextArray[i]); i++){
+      //console.log('word: ' + word);
+      if (wordHash.hasOwnProperty ? wordHash.hasOwnProperty(word) : (wordHash[word] !== undefined)) {
+        //console.log('defined, wordHash[word]: ' + wordHash[word]);
+        chars += String.fromCharCode(wordHash[word]);
+      } else {
+        chars += String.fromCharCode(wordArrayLength);
+        wordHash[word] = wordArrayLength;
+        wordArray[wordArrayLength++] = word;
+        //console.log('define now, wordHash[word]: ' + wordHash[word]);
+      }
+    }
+    //console.log('diff_wordsToCharsMunge_ finished with chars: ' + chars);
+    return chars;
+  }
+  var chars1 = diff_wordsToCharsMunge_(text1);
+  //console.log('chars1.length: ' + chars1.length);
+  //console.log('1: wordArray');
+  //console.log(wordArray);
+  var chars2 = diff_wordsToCharsMunge_(text2);
+  //console.log('chars2.length: ' + chars2.length);
+  //console.log('2: wordArray');
+  //console.log(wordArray);
+  return [chars1, chars2, wordArray];
+  //return {chars1: chars1, chars2: chars2, wordArray: wordArray};
+};
+
+
+/**
+ * Rehydrate the text in a diff from a string of line hashes to real lines of
+ * text.
+ * @param {!Array.<!diff_match_patch.Diff>} diffs Array of diff tuples.
+ * @param {!Array.<string>} lineArray Array of unique strings.
+ * @private
+ */
+diff_match_patch.prototype.diff_charsToWords_ = function(diffs, lineArray) {
+  for (var x = 0; x < diffs.length; x++) {
+    var chars = diffs[x][1];
+    var text = [];
+    for (var y = 0; y < chars.length; y++) {
+      text[y] = lineArray[chars.charCodeAt(y)];
+    }
+    diffs[x][1] = text.join(' ');
+  }
+};
+
+
+/**
  * Determine the common prefix of two strings.
  * @param {string} text1 First string.
  * @param {string} text2 Second string.
